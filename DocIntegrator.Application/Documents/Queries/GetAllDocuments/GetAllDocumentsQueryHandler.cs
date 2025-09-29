@@ -1,58 +1,55 @@
-﻿using DocIntegrator.Application.Documents.Dtos;
-using DocIntegrator.Application.Documents.Queries.GetAllDocuments;
+﻿using MediatR;
 using DocIntegrator.Application.Interfaces;
-using MediatR;
+using DocIntegrator.Application.Documents.Dtos;
+using DocIntegrator.Application.Documents.Queries;
+using DocIntegrator.Application.Documents.Filters;
 
-namespace DocIntegrator.Application.Queries;
+
+namespace DocIntegrator.Application.Documents.Queries.GetAllDocuments;
 
 public class GetAllDocumentsQueryHandler : IRequestHandler<GetAllDocumentsQuery, PagedResult<DocumentDto>>
 {
     private readonly IDocumentRepository _repository;
 
-    public GetAllDocumentsQueryHandler(IDocumentRepository repository)
-    {
-        _repository = repository;
-    }
+    public GetAllDocumentsQueryHandler(IDocumentRepository repository) => _repository = repository;
 
     public async Task<PagedResult<DocumentDto>> Handle(GetAllDocumentsQuery request, CancellationToken ct)
     {
-        // 1. Загружаем все документы из репозитория
+        var f = request.Filter; // сокращение для читабельности
         var docs = await _repository.GetAllAsync(ct);
 
-        // 2. Фильтрация по статусу
-        if (!string.IsNullOrWhiteSpace(request.Status))
-            docs = docs.Where(d => d.Status.Equals(request.Status, StringComparison.OrdinalIgnoreCase)).ToList();
+        // Фильтрация
+        if (!string.IsNullOrWhiteSpace(f.Status))
+            docs = docs.Where(d => string.Equals(d.Status, f.Status, StringComparison.OrdinalIgnoreCase)).ToList();
 
-        // 3. Поиск по части заголовка
-        if (!string.IsNullOrWhiteSpace(request.TitleContains))
-            docs = docs.Where(d => d.Title != null && d.Title.Contains(request.TitleContains, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (!string.IsNullOrWhiteSpace(f.TitleContains))
+            docs = docs.Where(d => (d.Title ?? string.Empty).Contains(f.TitleContains!, StringComparison.OrdinalIgnoreCase)).ToList();
 
-        // 4. Фильтрация по диапазону дат
-        if (request.CreatedFrom.HasValue)
-            docs = docs.Where(d => d.CreatedAt >= request.CreatedFrom.Value).ToList();
+        if (f.CreatedFrom.HasValue)
+            docs = docs.Where(d => d.CreatedAt >= f.CreatedFrom.Value).ToList();
 
-        if (request.CreatedTo.HasValue)
-            docs = docs.Where(d => d.CreatedAt <= request.CreatedTo.Value).ToList();
-
-        // 5. Сортировка: сначала основная, потом вторичная
-        IOrderedEnumerable<Domain.Entities.Document>? ordered = ApplyPrimarySorting(docs, request.PrimarySort, request.PrimarySortOrder);
-
-        if (!string.IsNullOrWhiteSpace(request.SecondarySort))
-            ordered = ApplySecondarySorting(ordered, request.SecondarySort, request.SecondarySortOrder);
-
-        var sortedDocs = (ordered ?? docs.OrderBy(d => d.Id)).ToList();
-
-        // 6. Подсчёт общего количества до пагинации
-        var totalCount = sortedDocs.Count;
-
-        // 7. Пагинация
-        if (request.Page.HasValue && request.PageSize.HasValue)
+        if (f.CreatedTo.HasValue)
         {
-            var skip = (request.Page.Value - 1) * request.PageSize.Value;
-            sortedDocs = sortedDocs.Skip(skip).Take(request.PageSize.Value).ToList();
+            var inclusiveTo = f.CreatedTo.Value.Date.AddDays(1);
+            docs = docs.Where(d => d.CreatedAt < inclusiveTo).ToList();
         }
 
-        // 8. Маппинг в DTO
+        // Сортировка: primary + optional secondary
+        var ordered = ApplyPrimarySorting(docs, f.PrimarySort, f.PrimarySortOrder);
+        if (!string.IsNullOrWhiteSpace(f.SecondarySort))
+            ordered = ApplySecondarySorting(ordered, f.SecondarySort, f.SecondarySortOrder);
+
+        var sortedDocs = ordered.ToList();
+
+        // Подсчёт до пагинации
+        var totalCount = sortedDocs.Count;
+
+        // Пагинация (если PageSize не задан — возвращаем все)
+        var page = f.Page ?? 1;
+        var pageSize = f.PageSize ?? totalCount;
+        var skip = Math.Max(0, (page - 1) * pageSize);
+        sortedDocs = sortedDocs.Skip(skip).Take(pageSize).ToList();
+
         return new PagedResult<DocumentDto>
         {
             Items = sortedDocs.Select(d => new DocumentDto
@@ -64,62 +61,58 @@ public class GetAllDocumentsQueryHandler : IRequestHandler<GetAllDocumentsQuery,
                 CreatedAt = d.CreatedAt
             }).ToList(),
             TotalCount = totalCount,
-            Page = request.Page ?? 1,
-            PageSize = request.PageSize ?? totalCount
+            Page = page,
+            PageSize = pageSize
         };
     }
 
-    // Основная сортировка (OrderBy / OrderByDescending)
-    private IOrderedEnumerable<Domain.Entities.Document> ApplyPrimarySorting(
-        IEnumerable<Domain.Entities.Document> docs,
-        string? sortField,
-        string? sortOrder)
+    // Primary: OrderBy / OrderByDescending + кастомный порядок статусов
+    private IOrderedEnumerable<Domain.Entities.Document> ApplyPrimarySorting(IEnumerable<Domain.Entities.Document> docs, string? sortField, string? sortOrder)
     {
-        bool asc = sortOrder?.ToLower() == "asc";
-
-        return sortField?.ToLower() switch
+        bool asc = string.Equals(sortOrder, "asc", StringComparison.OrdinalIgnoreCase);
+        switch (sortField?.ToLowerInvariant())
         {
-            "title" => asc ? docs.OrderBy(d => d.Title) : docs.OrderByDescending(d => d.Title),
+            case "title":
+                return asc ? docs.OrderBy(d => d.Title) : docs.OrderByDescending(d => d.Title);
 
-            // Кастомный порядок статусов: Черновик → Manual approval → Опубликован → остальные
-            "status" => asc
-                ? docs.OrderBy(d => GetStatusOrder(d.Status))
-                : docs.OrderByDescending(d => GetStatusOrder(d.Status)),
+            case "status":
+                // Кастомный порядок статусов + внутри групп стабильность по дате
+                return asc
+                    ? docs.OrderBy(d => GetStatusOrder(d.Status)).ThenByDescending(d => d.CreatedAt)
+                    : docs.OrderByDescending(d => GetStatusOrder(d.Status)).ThenByDescending(d => d.CreatedAt);
 
-            "createdat" => asc ? docs.OrderBy(d => d.CreatedAt) : docs.OrderByDescending(d => d.CreatedAt),
-
-            _ => docs.OrderBy(d => d.Id) // fallback
-        };
+            case "createdat":
+            default:
+                return asc ? docs.OrderBy(d => d.CreatedAt) : docs.OrderByDescending(d => d.CreatedAt);
+        }
     }
 
-    // Вторичная сортировка (ThenBy / ThenByDescending)
-    private IOrderedEnumerable<Domain.Entities.Document> ApplySecondarySorting(
-        IOrderedEnumerable<Domain.Entities.Document> docs,
-        string? sortField,
-        string? sortOrder)
+    // Secondary: ThenBy / ThenByDescending подключается поверх primary
+    private IOrderedEnumerable<Domain.Entities.Document> ApplySecondarySorting(IOrderedEnumerable<Domain.Entities.Document> docs, string? sortField, string? sortOrder)
     {
-        bool asc = sortOrder?.ToLower() == "asc";
-
-        return sortField?.ToLower() switch
+        bool asc = string.Equals(sortOrder, "asc", StringComparison.OrdinalIgnoreCase);
+        switch (sortField?.ToLowerInvariant())
         {
-            "title" => asc ? docs.ThenBy(d => d.Title) : docs.ThenByDescending(d => d.Title),
-            "status" => asc
-                ? docs.ThenBy(d => GetStatusOrder(d.Status))
-                : docs.ThenByDescending(d => GetStatusOrder(d.Status)),
-            "createdat" => asc ? docs.ThenBy(d => d.CreatedAt) : docs.ThenByDescending(d => d.CreatedAt),
-            _ => docs
-        };
+            case "title":
+                return asc ? docs.ThenBy(d => d.Title) : docs.ThenByDescending(d => d.Title);
+
+            case "status":
+                return asc 
+                    ? docs.ThenBy(d => GetStatusOrder(d.Status)).ThenByDescending(d => d.CreatedAt) 
+                    : docs.ThenByDescending(d => GetStatusOrder(d.Status)).ThenByDescending(d => d.CreatedAt);
+
+            case "createdat":
+            default:
+                return asc ? docs.ThenBy(d => d.CreatedAt) : docs.ThenByDescending(d => d.CreatedAt);
+        }
     }
 
-    // Метод для кастомного порядка статусов
-    private int GetStatusOrder(string? status)
-    {
-        return status switch
+    // Кастомный порядок статусов: бизнес-логика вместо алфавита
+    private int GetStatusOrder(string? status) =>
+        status switch
         {
-            "Черновик" => 1,
-            "Manual approval" => 2,
-            "Опубликован" => 3,
-            _ => 99 // все остальные статусы идут в конец
+            "Опубликован" => 1,
+            "Черновик" => 2,
+            _ => 99
         };
-    }
 }

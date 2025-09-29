@@ -1,17 +1,8 @@
 ﻿using MediatR;
 using DocIntegrator.Application.Documents.Dtos;
+using DocIntegrator.Application.Documents.Filters;
 
-namespace DocIntegrator.Application.Documents.Queries.GetAllDocuments;
+namespace DocIntegrator.Application.Documents.Queries;
 
-public record GetAllDocumentsQuery(
-    string? Status = null,
-    string? TitleContains = null,
-    string? PrimarySort = "createdAt", // поле для первой сортировки
-    string? PrimarySortOrder = "desc", // asc или desc
-    string? SecondarySort = null, // поле для второй сортировки
-    string? SecondarySortOrder = "asc",
-    DateTime? CreatedFrom = null,  // с какой даты
-    DateTime? CreatedTo = null,    // по какую дату
-    int? Page = null,
-    int? PageSize = null
-) : IRequest<PagedResult<DocumentDto>>;
+public record GetAllDocumentsQuery(DocumentsFilterDto Filter)
+    : IRequest<PagedResult<DocumentDto>>;

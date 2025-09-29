@@ -1,8 +1,10 @@
-﻿using MediatR;
-using Microsoft.AspNetCore.Mvc;
+﻿using DocIntegrator.Application.Documents.Commands;
 using DocIntegrator.Application.Interfaces;
-using DocIntegrator.Application.Documents.Queries.GetAllDocuments;
-using DocIntegrator.Application.Documents.Commands;
+using MediatR;
+using Microsoft.AspNetCore.Mvc;
+using DocIntegrator.Application.Documents.Filters;
+using DocIntegrator.Application.Documents.Queries;
+
 
 namespace DocIntegrator.Api.Controllers;
 
@@ -21,34 +23,12 @@ public class DocumentsController : ControllerBase
 
     // GET: api/Documents
     [HttpGet]
-    public async Task<IActionResult> GetAll(
-    [FromQuery] string? status,
-    [FromQuery] string? titleContains,
-    [FromQuery] string? primarySort = "createdAt",
-    [FromQuery] string? primarySortOrder = "desc",
-    [FromQuery] string? secondarySort = null,
-    [FromQuery] string? secondarySortOrder = "asc",
-    [FromQuery] DateTime? createdFrom = null,
-    [FromQuery] DateTime? createdTo = null,
-    [FromQuery] int? page = null,
-    [FromQuery] int? pageSize = null,
-    CancellationToken ct = default)
+    public async Task<IActionResult> GetAll([FromQuery] DocumentsFilterDto filter, CancellationToken ct)
     {
-        var result = await _mediator.Send(new GetAllDocumentsQuery(
-            status,
-            titleContains,
-            primarySort,
-            primarySortOrder,
-            secondarySort,
-            secondarySortOrder,
-            createdFrom,
-            createdTo,
-            page,
-            pageSize
-        ), ct);
-
+        var result = await _mediator.Send(new GetAllDocumentsQuery(filter), ct);
         return Ok(result);
     }
+
 
 
     // GET: api/Documents/{id}

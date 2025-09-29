@@ -1,12 +1,10 @@
-using Microsoft.OpenApi.Models;
 using DocIntegrator.Application.Interfaces;
 using DocIntegrator.Infrastructure.Repositories;
 using MediatR;
-using DocIntegrator.Application.Documents.Queries.GetAllDocuments;
 using DocIntegrator.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
-using FluentValidation;
 using FluentValidation.AspNetCore;
+using DocIntegrator.Application.Documents.Queries;
 
 var builder = WebApplication.CreateBuilder(args);
 
