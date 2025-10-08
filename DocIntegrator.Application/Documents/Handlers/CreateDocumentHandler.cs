@@ -1,28 +1,37 @@
 ﻿using MediatR;
 using DocIntegrator.Application.Interfaces;
-using DocIntegrator.Domain.Entities;
+using DocIntegrator.Application.Documents.Dtos;
+using DocIntegrator.Application.Documents.Commands;
 
-public class CreateDocumentHandler : IRequestHandler<CreateDocumentCommand, Guid>
+namespace DocIntegrator.Application.Documents.Handlers;
+
+public class CreateDocumentHandler : IRequestHandler<CreateDocumentCommand, DocumentDto>
 {
     private readonly IDocumentRepository _repository;
 
     public CreateDocumentHandler(IDocumentRepository repository)
-    {
-        _repository = repository;
-    }
+        => _repository = repository;
 
-    public async Task<Guid> Handle(CreateDocumentCommand request, CancellationToken cancellationToken)
+    public async Task<DocumentDto> Handle(CreateDocumentCommand request, CancellationToken ct)
     {
-        var doc = new Document
+        var entity = new Domain.Entities.Document
         {
             Id = Guid.NewGuid(),
-            Title = request.Title,
-            Content = request.Content,
-            Status = request.Status,
+            Title = request.Document.Title,
+            Content = request.Document.Content,
+            Status = request.Document.Status,
             CreatedAt = DateTime.UtcNow
         };
 
-        await _repository.AddAsync(doc, cancellationToken);
-        return doc.Id;
+        await _repository.AddAsync(entity, ct);
+
+        return new DocumentDto
+        {
+            Id = entity.Id,
+            Title = entity.Title,
+            Content = entity.Content,
+            Status = entity.Status,
+            CreatedAt = entity.CreatedAt
+        };
     }
 }

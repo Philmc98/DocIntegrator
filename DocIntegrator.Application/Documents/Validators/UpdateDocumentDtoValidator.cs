@@ -1,8 +1,11 @@
 ﻿using FluentValidation;
+using DocIntegrator.Application.Documents.Dtos;
 
-public class CreateDocumentValidator : AbstractValidator<CreateDocumentCommand>
+namespace DocIntegrator.Application.Documents.Validators;
+
+public class UpdateDocumentDtoValidator : AbstractValidator<UpdateDocumentDto>
 {
-    public CreateDocumentValidator()
+    public UpdateDocumentDtoValidator()
     {
         RuleFor(x => x.Title)
             .NotEmpty().WithMessage("Title обязателен")

@@ -1,3 +1,6 @@
 ﻿using MediatR;
+using DocIntegrator.Application.Documents.Dtos;
 
-public record CreateDocumentCommand(string Title, string Content, string Status) : IRequest<Guid>;
+namespace DocIntegrator.Application.Documents.Commands;
+
+public record CreateDocumentCommand(CreateDocumentDto Document) : IRequest<DocumentDto>;

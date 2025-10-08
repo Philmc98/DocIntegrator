@@ -1,9 +1,11 @@
 ﻿using DocIntegrator.Application.Documents.Commands;
+using DocIntegrator.Application.Documents.Dtos;
+using DocIntegrator.Application.Documents.Filters;
+using DocIntegrator.Application.Documents.Queries;
+using DocIntegrator.Application.Documents.Queries.GetAllDocuments;
 using DocIntegrator.Application.Interfaces;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using DocIntegrator.Application.Documents.Filters;
-using DocIntegrator.Application.Documents.Queries;
 
 
 namespace DocIntegrator.Api.Controllers;
@@ -32,44 +34,37 @@ public class DocumentsController : ControllerBase
 
 
     // GET: api/Documents/{id}
-    [HttpGet("{id}")]
-    public async Task<IActionResult> Get(Guid id, CancellationToken ct)
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
-        var doc = await _repository.GetByIdAsync(id, ct);
-        return doc is null ? NotFound() : Ok(doc);
+        var result = await _mediator.Send(new GetDocumentByIdQuery(id), ct);
+        if (result == null) return NotFound();
+        return Ok(result);
     }
 
     // POST: api/Documents
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreateDocumentCommand command, CancellationToken ct)
+    public async Task<IActionResult> Create([FromBody] CreateDocumentDto dto, CancellationToken ct)
     {
-        var id = await _mediator.Send(command, ct);
-        return CreatedAtAction(nameof(Get), new { id }, new
-        {
-            id,
-            title = command.Title,
-            content = command.Content,
-            status = command.Status,
-            created = DateTime.UtcNow
-        });
+        var result = await _mediator.Send(new CreateDocumentCommand(dto), ct);
+        return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
     // PUT: api/Documents/{id}
-    [HttpPut("{id}")]
-    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateDocumentCommand command, CancellationToken ct)
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateDocumentDto dto, CancellationToken ct)
     {
-        if (id != command.Id)
-            return BadRequest("Id в URL и теле запроса не совпадают");
-
-        await _mediator.Send(command, ct);
-        return NoContent();
+        var result = await _mediator.Send(new UpdateDocumentCommand(id, dto), ct);
+        if (result == null) return NotFound();
+        return Ok(result);
     }
 
     // DELETE: api/Documents/{id}
-    [HttpDelete("{id}")]
+    [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
-        await _mediator.Send(new DeleteDocumentCommand(id), ct);
+        var ok = await _mediator.Send(new DeleteDocumentCommand(id), ct);
+        if (!ok) return NotFound();
         return NoContent();
     }
 }

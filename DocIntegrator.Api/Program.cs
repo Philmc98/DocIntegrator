@@ -1,19 +1,22 @@
 using DocIntegrator.Application.Interfaces;
 using DocIntegrator.Infrastructure.Repositories;
-using MediatR;
 using DocIntegrator.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using FluentValidation;
 using FluentValidation.AspNetCore;
 using DocIntegrator.Application.Documents.Queries;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Controllers + FluentValidation
-builder.Services
-    .AddControllers()
-    .AddFluentValidation(fv => fv.RegisterValidatorsFromAssemblyContaining<CreateDocumentValidator>());
+builder.Services.AddControllers();
 
-builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+// јвтозапуск серверной валидации FluentValidation дл€ моделей (DTO)
+// Ѕез этого валидаторы не будут исполн€тьс€ автоматически
+builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddFluentValidationClientsideAdapters();
+
+// јвтоматически регистрируем все валидаторы из сборки Application
+builder.Services.AddValidatorsFromAssemblyContaining<CreateDocumentDtoValidator>();
 
 // Swagger
 builder.Services.AddEndpointsApiExplorer();
@@ -38,10 +41,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseAuthorization();
-
-// √лобальный обработчик ошибок Ч до контроллеров
+// √лобальный обработчик ошибок Ч до контроллеров (и до Authorization, если он интерпретирует ошибки)
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+app.UseAuthorization();
 
 app.MapControllers();
 

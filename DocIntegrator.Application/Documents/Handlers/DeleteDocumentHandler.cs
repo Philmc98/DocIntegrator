@@ -4,7 +4,7 @@ using DocIntegrator.Application.Documents.Commands;
 
 namespace DocIntegrator.Application.Documents.Handlers;
 
-public class DeleteDocumentHandler : IRequestHandler<DeleteDocumentCommand, Unit>
+public class DeleteDocumentHandler : IRequestHandler<DeleteDocumentCommand, bool>
 {
     private readonly IDocumentRepository _repository;
 
@@ -13,9 +13,9 @@ public class DeleteDocumentHandler : IRequestHandler<DeleteDocumentCommand, Unit
         _repository = repository;
     }
 
-    public async Task<Unit> Handle(DeleteDocumentCommand request, CancellationToken cancellationToken)
+    public async Task<bool> Handle(DeleteDocumentCommand request, CancellationToken ct)
     {
-        await _repository.DeleteAsync(request.Id, cancellationToken);
-        return Unit.Value;
+        await _repository.DeleteAsync(request.Id, ct);
+        return true;
     }
 }

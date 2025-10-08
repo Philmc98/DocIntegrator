@@ -1,5 +1,6 @@
 ﻿using MediatR;
+using DocIntegrator.Application.Documents.Dtos;
 
 namespace DocIntegrator.Application.Documents.Commands;
 
-public record UpdateDocumentCommand(Guid Id, string Title, string Content, string Status) : IRequest<Unit>;
+public record UpdateDocumentCommand(Guid Id, UpdateDocumentDto Document) : IRequest<DocumentDto?>;

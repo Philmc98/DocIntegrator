@@ -1,10 +1,11 @@
 ﻿using MediatR;
 using DocIntegrator.Application.Interfaces;
 using DocIntegrator.Application.Documents.Commands;
+using DocIntegrator.Application.Documents.Dtos;
 
 namespace DocIntegrator.Application.Documents.Handlers;
 
-public class UpdateDocumentHandler : IRequestHandler<UpdateDocumentCommand, Unit>
+public class UpdateDocumentHandler : IRequestHandler<UpdateDocumentCommand, DocumentDto?>
 {
     private readonly IDocumentRepository _repository;
 
@@ -13,17 +14,24 @@ public class UpdateDocumentHandler : IRequestHandler<UpdateDocumentCommand, Unit
         _repository = repository;
     }
 
-    public async Task<Unit> Handle(UpdateDocumentCommand request, CancellationToken cancellationToken)
+    public async Task<DocumentDto?> Handle(UpdateDocumentCommand request, CancellationToken ct)
     {
-        var existing = await _repository.GetByIdAsync(request.Id, cancellationToken);
-        if (existing is null)
-            throw new KeyNotFoundException("Документ не найден");
+        var entity = await _repository.GetByIdAsync(request.Id, ct);
+        if (entity == null) return null;
 
-        existing.Title = request.Title;
-        existing.Content = request.Content;
-        existing.Status = request.Status;
+        entity.Title = request.Document.Title;
+        entity.Content = request.Document.Content;
+        entity.Status = request.Document.Status;
 
-        await _repository.UpdateAsync(existing, cancellationToken);
-        return Unit.Value;
+        await _repository.UpdateAsync(entity, ct);
+
+        return new DocumentDto
+        {
+            Id = entity.Id,
+            Title = entity.Title,
+            Content = entity.Content,
+            Status = entity.Status,
+            CreatedAt = entity.CreatedAt
+        };
     }
 }
