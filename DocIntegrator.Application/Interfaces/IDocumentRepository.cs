@@ -8,5 +8,5 @@ public interface IDocumentRepository
     Task<Document?> GetByIdAsync(Guid id, CancellationToken ct);
     Task AddAsync(Document entity, CancellationToken ct);
     Task UpdateAsync(Document entity, CancellationToken ct);
-    Task DeleteAsync(Guid id, CancellationToken ct);
+    Task<bool> DeleteAsync(Guid id, CancellationToken ct);
 }

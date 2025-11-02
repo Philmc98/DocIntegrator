@@ -24,9 +24,9 @@ public class InMemoryDocumentRepository : IDocumentRepository
         return Task.CompletedTask;
     }
 
-    public Task DeleteAsync(Guid id, CancellationToken ct = default)
+    public Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
     {
-        _docs.RemoveAll(d => d.Id == id);
-        return Task.CompletedTask;
+        var removed = _docs.RemoveAll(d => d.Id == id);
+        return Task.FromResult(removed > 0);
     }
 }

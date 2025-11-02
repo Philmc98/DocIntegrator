@@ -1,4 +1,5 @@
 ﻿using FluentValidation;
+using DocIntegrator.Application.Common.Exceptions;
 
 
 public class ExceptionHandlingMiddleware
@@ -23,6 +24,20 @@ public class ExceptionHandlingMiddleware
             context.Response.StatusCode = StatusCodes.Status400BadRequest;
             context.Response.ContentType = "application/json";
             await context.Response.WriteAsJsonAsync(new { errors = ex.Errors.Select(e => e.ErrorMessage) });
+        }
+        catch (NotFoundException ex)
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            context.Response.ContentType = "application/json";
+
+            var result = new
+            {
+                title = "Not Found",
+                status = 404,
+                detail = ex.Message
+            };
+
+            await context.Response.WriteAsJsonAsync(result);
         }
         catch (Exception ex)
         {

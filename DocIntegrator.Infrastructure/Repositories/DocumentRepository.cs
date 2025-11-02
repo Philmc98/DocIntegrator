@@ -32,13 +32,16 @@ public class DocumentRepository : IDocumentRepository
         await _context.SaveChangesAsync(ct);
     }
 
-    public async Task DeleteAsync(Guid id, CancellationToken ct = default)
+    public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
     {
         var entity = await _context.Documents.FindAsync(new object[] { id }, ct);
-        if (entity != null)
+        if (entity == null)
         {
-            _context.Documents.Remove(entity);
-            await _context.SaveChangesAsync(ct);
+            return false;
         }
+
+        _context.Documents.Remove(entity);
+        await _context.SaveChangesAsync(ct);
+        return true;
     }
 }

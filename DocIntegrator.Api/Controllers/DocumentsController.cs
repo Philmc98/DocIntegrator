@@ -6,6 +6,7 @@ using DocIntegrator.Application.Documents.Queries.GetAllDocuments;
 using DocIntegrator.Application.Interfaces;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using DocIntegrator.Application.Common.Models;
 
 
 namespace DocIntegrator.Api.Controllers;
@@ -15,23 +16,19 @@ namespace DocIntegrator.Api.Controllers;
 public class DocumentsController : ControllerBase
 {
     private readonly IMediator _mediator;
-    private readonly IDocumentRepository _repository;
 
-    public DocumentsController(IMediator mediator, IDocumentRepository repository)
+    public DocumentsController(IMediator mediator)
     {
         _mediator = mediator;
-        _repository = repository;
     }
 
     // GET: api/Documents
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] DocumentsFilterDto filter, CancellationToken ct)
+    public async Task<ActionResult<PagedResult<DocumentDto>>> GetDocuments([FromQuery] DocumentsFilterDto filter, CancellationToken ct)
     {
         var result = await _mediator.Send(new GetAllDocumentsQuery(filter), ct);
         return Ok(result);
     }
-
-
 
     // GET: api/Documents/{id}
     [HttpGet("{id:guid}")]
