@@ -7,9 +7,13 @@ public class InMemoryDocumentRepository : IDocumentRepository
 {
     private readonly List<Document> _docs = new();
 
-    public Task<List<Document>> GetAllAsync(CancellationToken cancellationToken) => Task.FromResult(_docs);
+    public IQueryable<Document> Query() => _docs.AsQueryable();
+
     public Task<Document?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
         Task.FromResult(_docs.FirstOrDefault(d => d.Id == id));
+
+    public Task<bool> ExistsAsync(Guid id, CancellationToken ct) =>
+        Task.FromResult(_docs.Any(d => d.Id == id));
 
     public Task AddAsync(Document doc, CancellationToken ct = default)
     {
@@ -29,4 +33,6 @@ public class InMemoryDocumentRepository : IDocumentRepository
         var removed = _docs.RemoveAll(d => d.Id == id);
         return Task.FromResult(removed > 0);
     }
+
+    public Task<int> SaveChangesAsync(CancellationToken ct) => Task.FromResult(0);
 }

@@ -5,9 +5,13 @@ using Microsoft.EntityFrameworkCore;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using DocIntegrator.Application.Documents.Queries;
+using DocIntegrator.Application.Documents.Validators;
+using DocIntegrator.Api.Middleware;
 
+// здесь загружаютс€ конфиги, настраиваетс€ DI-контейнер
 var builder = WebApplication.CreateBuilder(args);
 
+// регистрируем контроллеры
 builder.Services.AddControllers();
 
 // јвтозапуск серверной валидации FluentValidation дл€ моделей (DTO)
@@ -20,7 +24,15 @@ builder.Services.AddValidatorsFromAssemblyContaining<CreateDocumentDtoValidator>
 
 // Swagger
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    if (File.Exists(xmlPath))
+    {
+        options.IncludeXmlComments(xmlPath, includeControllerXmlComments: true);
+    }
+});
 
 // MediatR
 builder.Services.AddMediatR(cfg =>
@@ -33,9 +45,22 @@ builder.Services.AddDbContext<DocIntegratorDbContext>(options =>
 // –епозиторий (только PostgreSQL)
 builder.Services.AddScoped<IDocumentRepository, DocumentRepository>();
 
+// Ћогирование
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+
+// CORS (если нужен фронт)
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader());
+});
+
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
@@ -43,6 +68,9 @@ if (app.Environment.IsDevelopment())
 
 // √лобальный обработчик ошибок Ч до контроллеров (и до Authorization, если он интерпретирует ошибки)
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+app.UseRouting();
+app.UseCors("AllowAll");
 
 app.UseAuthorization();
 

@@ -14,24 +14,47 @@ public class DocumentRepository : IDocumentRepository
         _context = context;
     }
 
-    public async Task<List<Document>> GetAllAsync(CancellationToken ct = default)
-        => await _context.Documents.ToListAsync(ct);
+    /// <summary>
+    /// Возвращает IQueryable для построения запросов.
+    /// Используем AsNoTracking, чтобы ускорить чтение (EF не будет отслеживать изменения).
+    /// </summary>
+    public IQueryable<Document> Query() => _context.Documents.AsNoTracking();
 
+    /// <summary>
+    /// Получить документ по идентификатору.
+    /// </summary>
     public async Task<Document?> GetByIdAsync(Guid id, CancellationToken ct = default)
-        => await _context.Documents.FirstOrDefaultAsync(d => d.Id == id, ct);
+        => await _context.Documents.AsNoTracking().FirstOrDefaultAsync(d => d.Id == id, ct);
 
+    /// <summary>
+    /// Проверить, существует ли документ с указанным идентификатором.
+    /// </summary>
+    public async Task<bool> ExistsAsync(Guid id, CancellationToken ct = default)
+        => await _context.Documents.AnyAsync(d => d.Id == id, ct);
+
+    /// <summary>
+    /// Добавить новый документ.
+    /// </summary>
     public async Task AddAsync(Document doc, CancellationToken ct = default)
     {
-        _context.Documents.Add(doc);
+        await _context.Documents.AddAsync(doc, ct);
         await _context.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// Обновить существующий документ.
+    /// Используем Attach + EntityState.Modified, чтобы избежать проблем с трекингом.
+    /// </summary>
     public async Task UpdateAsync(Document doc, CancellationToken ct = default)
     {
-        _context.Documents.Update(doc);
+        _context.Attach(doc);
+        _context.Entry(doc).State = EntityState.Modified;
         await _context.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// Удалить документ по идентификатору.
+    /// </summary>
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
     {
         var entity = await _context.Documents.FindAsync(new object[] { id }, ct);
@@ -41,7 +64,12 @@ public class DocumentRepository : IDocumentRepository
         }
 
         _context.Documents.Remove(entity);
-        await _context.SaveChangesAsync(ct);
-        return true;
+        return await _context.SaveChangesAsync(ct) > 0;
     }
+
+    /// <summary>
+    /// Сохранить изменения вручную (например, в рамках Unit of Work).
+    /// </summary>
+    public async Task<int> SaveChangesAsync(CancellationToken ct = default)
+        => await _context.SaveChangesAsync(ct);
 }
