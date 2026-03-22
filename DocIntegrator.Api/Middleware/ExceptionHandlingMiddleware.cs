@@ -1,4 +1,4 @@
-﻿using FluentValidation;
+using FluentValidation;
 using DocIntegrator.Application.Common.Exceptions;
 
 namespace DocIntegrator.Api.Middleware;
@@ -12,7 +12,9 @@ public class ExceptionHandlingMiddleware
     private readonly RequestDelegate _next;
     private readonly ILogger<ExceptionHandlingMiddleware> _logger;
 
-    // Конструктор middleware, принимающий следующий делегат запроса и логгер
+    /// <summary>Инициализирует middleware со следующим делегатом запроса и логгером.</summary>
+    /// <param name="next">Следующий middleware в конвейере.</param>
+    /// <param name="logger">Логгер для записи ошибок.</param>
     public ExceptionHandlingMiddleware(RequestDelegate next, ILogger<ExceptionHandlingMiddleware> logger)
     {
         _next = next;
@@ -39,17 +41,19 @@ public class ExceptionHandlingMiddleware
             context.Response.ContentType = "application/json";
 
             var errors = ex.Errors
-                .GroupBy(e => e.PropertyName) // Группируем ошибки по имени свойства
+                .GroupBy(e => e.PropertyName)
                 .ToDictionary(
                     g => g.Key,
                     g => g.Select(e => e.ErrorMessage).ToArray()
                 );
 
+            var traceId = context.TraceIdentifier;
             var result = new
             {
                 title = "Validation Failed",
                 status = StatusCodes.Status400BadRequest,
-                errors
+                errors,
+                traceId
             };
 
             await context.Response.WriteAsJsonAsync(result);
@@ -67,7 +71,8 @@ public class ExceptionHandlingMiddleware
             {
                 title = "Not Found",
                 status = StatusCodes.Status404NotFound,
-                detail = ex.Message
+                detail = ex.Message,
+                traceId = context.TraceIdentifier
             };
 
             await context.Response.WriteAsJsonAsync(result);
@@ -84,7 +89,8 @@ public class ExceptionHandlingMiddleware
             {
                 title = "Internal Server Error",
                 status = StatusCodes.Status500InternalServerError,
-                detail = "Внутренняя ошибка сервера. Обратитесь к администратору."
+                detail = "Внутренняя ошибка сервера. Обратитесь к администратору.",
+                traceId = context.TraceIdentifier
             };
 
             await context.Response.WriteAsJsonAsync(result);

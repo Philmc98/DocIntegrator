@@ -1,4 +1,4 @@
-﻿namespace DocIntegrator.Application.Documents.Filters;
+namespace DocIntegrator.Application.Documents.Filters;
 
 /// <summary>
 /// DTO для фильтрации, сортировки и пагинации списка документов.
@@ -16,12 +16,12 @@ public class DocumentsFilterDto
     /// </summary>
     public string? TitleContains { get; set; }
 
-    // <summary>
+    /// <summary>
     /// Фильтр по дате создания: начиная с этой даты.
     /// </summary>
     public DateTime? CreatedFrom { get; set; }
 
-    // <summary>
+    /// <summary>
     /// Фильтр по дате создания: до этой даты.
     /// </summary>
     public DateTime? CreatedTo { get; set; }

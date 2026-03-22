@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docintegrator-api
+  labels:
+    app: docintegrator-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: docintegrator-api
+  template:
+    metadata:
+      labels:
+        app: docintegrator-api
+    spec:
+      containers:
+        - name: api
+          image: docintegrator/api:latest # собирается GitHub Actions / локально через Dockerfile
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Production"
+            - name: ASPNETCORE_URLS
+              value: "http://+:8080"
+            - name: ConnectionStrings__DefaultConnection
+              valueFrom:
+                secretKeyRef:
+                  name: docintegrator-secrets
+                  key: postgres-connection
+            - name: ConnectionStrings__Redis
+              value: "redis:6379"
+            - name: Kafka__BootstrapServers
+              value: "kafka:9092"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+

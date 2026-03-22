@@ -1,5 +1,7 @@
-﻿using FluentValidation;
+using FluentValidation;
 using DocIntegrator.Application.Documents.Filters;
+
+namespace DocIntegrator.Application.Documents.Validators;
 
 public class DocumentsFilterDtoValidator : AbstractValidator<DocumentsFilterDto>
 {

@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using DocIntegrator.Application.Interfaces;
 using DocIntegrator.Application.Documents.Commands;
 using DocIntegrator.Application.Documents.Dtos;
@@ -13,14 +13,22 @@ namespace DocIntegrator.Application.Documents.Handlers;
 public class UpdateDocumentHandler : IRequestHandler<UpdateDocumentCommand, DocumentDto?>
 {
     private readonly IDocumentRepository _repository;
+    private readonly IDocumentIntegrationService _integrationService;
+    private readonly IDocumentCache _cache;
     private readonly ILogger<UpdateDocumentHandler> _logger;
 
     /// <summary>
-    /// Внедряем репозиторий и логгер через DI.
+    /// Внедряем репозиторий, интеграционный сервис, кеш и логгер через DI.
     /// </summary>
-    public UpdateDocumentHandler(IDocumentRepository repository, ILogger<UpdateDocumentHandler> logger)
+    public UpdateDocumentHandler(
+        IDocumentRepository repository,
+        IDocumentIntegrationService integrationService,
+        IDocumentCache cache,
+        ILogger<UpdateDocumentHandler> logger)
     {
         _repository = repository;
+        _integrationService = integrationService;
+        _cache = cache;
         _logger = logger;
     }
 
@@ -47,10 +55,19 @@ public class UpdateDocumentHandler : IRequestHandler<UpdateDocumentCommand, Docu
         // Сохраняем изменения в БД.
         await _repository.UpdateAsync(entity, ct);
 
+        // Готовим DTO для интеграций и кеша.
+        var updatedDto = MapToDto(entity);
+
+        // Отправляем интеграционное событие (event store + Kafka).
+        await _integrationService.HandleDocumentUpdatedAsync(updatedDto, ct);
+
+        // Обновляем кеш Redis.
+        await _cache.SetAsync(updatedDto, ct);
+
         _logger.LogInformation("Документ успешно обновлён. Id = {DocumentId}, Title = {Title}", entity.Id, entity.Title);
 
         // Возвращаем обновлённый DTO клиенту.
-        return MapToDto(entity);
+        return updatedDto;
     }
 
     /// <summary>

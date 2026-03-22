@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using DocIntegrator.Application.Interfaces;
 using DocIntegrator.Application.Documents.Commands;
 using DocIntegrator.Application.Common.Exceptions;
@@ -13,14 +13,22 @@ namespace DocIntegrator.Application.Documents.Handlers;
 public class DeleteDocumentHandler : IRequestHandler<DeleteDocumentCommand, bool>
 {
     private readonly IDocumentRepository _repository;
+    private readonly IDocumentIntegrationService _integrationService;
+    private readonly IDocumentCache _cache;
     private readonly ILogger<DeleteDocumentHandler> _logger;
 
     /// <summary>
-    /// Внедряем репозиторий и логгер через DI.
+    /// Внедряем репозиторий, интеграционный сервис, кеш и логгер через DI.
     /// </summary>
-    public DeleteDocumentHandler(IDocumentRepository repository, ILogger<DeleteDocumentHandler> logger)
+    public DeleteDocumentHandler(
+        IDocumentRepository repository,
+        IDocumentIntegrationService integrationService,
+        IDocumentCache cache,
+        ILogger<DeleteDocumentHandler> logger)
     {
         _repository = repository;
+        _integrationService = integrationService;
+        _cache = cache;
         _logger = logger;
     }
 
@@ -38,6 +46,12 @@ public class DeleteDocumentHandler : IRequestHandler<DeleteDocumentCommand, bool
             _logger.LogWarning("Удаление документа не удалось: документ с Id = {DocumentId} не найден.", request.Id);
             throw new NotFoundException(nameof(DocIntegrator.Domain.Entities.Document), request.Id);
         }
+
+        // Инвалидируем кеш Redis, чтобы не отдавать уже удалённый документ.
+        await _cache.InvalidateAsync(request.Id, ct);
+
+        // Фиксируем событие удаления в event store + отправляем в Kafka.
+        await _integrationService.HandleDocumentDeletedAsync(request.Id, ct);
 
         // Логируем успешное удаление
         _logger.LogInformation("Документ с Id = {DocumentId} успешно удален.", request.Id);

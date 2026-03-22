@@ -1,8 +1,9 @@
-﻿using MediatR;
+using MediatR;
 using DocIntegrator.Application.Interfaces;
 using DocIntegrator.Application.Documents.Dtos;
 using DocIntegrator.Application.Common.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace DocIntegrator.Application.Documents.Queries.GetAllDocuments;
 
@@ -12,14 +13,19 @@ namespace DocIntegrator.Application.Documents.Queries.GetAllDocuments;
 public class GetAllDocumentsQueryHandler : IRequestHandler<GetAllDocumentsQuery, PagedResult<DocumentDto>>
 {
     private readonly IDocumentRepository _repository;
+    private readonly ILogger<GetAllDocumentsQueryHandler> _logger;
 
-    public GetAllDocumentsQueryHandler(IDocumentRepository repository) 
-        => _repository = repository;
+    public GetAllDocumentsQueryHandler(IDocumentRepository repository, ILogger<GetAllDocumentsQueryHandler> logger)
+    {
+        _repository = repository;
+        _logger = logger;
+    }
 
     public async Task<PagedResult<DocumentDto>> Handle(GetAllDocumentsQuery request, CancellationToken ct)
     {
-        // Берем фильтр из запроса
         var f = request.Filter;
+        _logger.LogInformation("GetAllDocuments: Page={Page}, PageSize={PageSize}, SortBy={SortBy}, Status={Status}",
+            f.Page, f.PageSize, f.SortBy, f.Status ?? "(any)");
 
         // Устанавливаем значения по умолчанию, если они не заданы
         f.SortBy ??= "CreatedAt";
@@ -49,8 +55,8 @@ public class GetAllDocumentsQueryHandler : IRequestHandler<GetAllDocumentsQuery,
         bool asc = string.Equals(f.SortDir, "Asc", StringComparison.OrdinalIgnoreCase);
         query = f.SortBy?.ToLowerInvariant() switch
         {
-            "Title" => asc ? query.OrderBy(d => d.Title) : query.OrderByDescending(d => d.Title),
-            "Status" => asc ? query.OrderBy(d => d.Status) : query.OrderByDescending(d => d.Status),
+            "title" => asc ? query.OrderBy(d => d.Title) : query.OrderByDescending(d => d.Title),
+            "status" => asc ? query.OrderBy(d => d.Status) : query.OrderByDescending(d => d.Status),
             _ => asc ? query.OrderBy(d => d.CreatedAt) : query.OrderByDescending(d => d.CreatedAt)
         };
 
@@ -69,7 +75,7 @@ public class GetAllDocumentsQueryHandler : IRequestHandler<GetAllDocumentsQuery,
                 CreatedAt = d.CreatedAt
             }).ToListAsync(ct);
 
-
+        _logger.LogInformation("GetAllDocuments: возвращено {Count} из {TotalCount}", items.Count, totalCount);
         return new PagedResult<DocumentDto>(items, totalCount, f.Page, f.PageSize);
     }
 }

@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using DocIntegrator.Application.Interfaces;
 using DocIntegrator.Application.Documents.Dtos;
 using DocIntegrator.Application.Documents.Commands;
@@ -13,14 +13,22 @@ namespace DocIntegrator.Application.Documents.Handlers;
 public class CreateDocumentHandler : IRequestHandler<CreateDocumentCommand, DocumentDto>
 {
     private readonly IDocumentRepository _repository;
+    private readonly IDocumentIntegrationService _integrationService;
+    private readonly IDocumentCache _cache;
     private readonly ILogger<CreateDocumentHandler> _logger;
 
     /// <summary>
-    /// Внедряем репозиторий и логгер через DI.
+    /// Внедряем репозиторий, интеграционный сервис (Kafka + event store) и кеш, а также логгер через DI.
     /// </summary>
-    public CreateDocumentHandler(IDocumentRepository repository, ILogger<CreateDocumentHandler> logger)
+    public CreateDocumentHandler(
+        IDocumentRepository repository,
+        IDocumentIntegrationService integrationService,
+        IDocumentCache cache,
+        ILogger<CreateDocumentHandler> logger)
     {
         _repository = repository;
+        _integrationService = integrationService;
+        _cache = cache;
         _logger = logger;
     }
 
@@ -41,14 +49,25 @@ public class CreateDocumentHandler : IRequestHandler<CreateDocumentCommand, Docu
             CreatedAt = DateTime.UtcNow  // Фиксируем момент создания.
         };
 
-        // Сохраняем в БД через репозиторий.
+        // Сохраняем в БД через репозиторий (основное состояние).
         await _repository.AddAsync(entity, ct);
+
+        // Маппим сущность в DTO для ответа и интеграций.
+        var createdDto = MapToDto(entity);
+
+        // Отправляем интеграционное событие:
+        // - запишется в event store (event sourcing / аудит),
+        // - уйдёт в Kafka для других микросервисов.
+        await _integrationService.HandleDocumentCreatedAsync(createdDto, ct);
+
+        // Кладём свежесозданный документ в кеш Redis, чтобы ускорить последующие чтения.
+        await _cache.SetAsync(createdDto, ct);
 
         // Логируем успешное создание.
         _logger.LogInformation("Документ создан. Id = {DocumentId}, Title = {Title}", entity.Id, entity.Title);
 
         // Возвращаем DTO клиенту.
-        return MapToDto(entity);
+        return createdDto;
     }
 
     /// <summary>
